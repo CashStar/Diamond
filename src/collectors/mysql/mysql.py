@@ -101,7 +101,9 @@ class MySQLCollector(diamond.collector.Collector):
         'Innodb_log_pending_checkpoint_writes', 'Innodb_log_pending_log_writes',
         'Innodb_row_queries_inside', 'Innodb_row_queries_queue',
         'Innodb_trx_history_list_length', 'Innodb_trx_total_lock_structs',
-        'Innodb_status_process_time', ]
+        'Innodb_status_process_time',
+    'Slave_running',
+    ]
     _IGNORE_KEYS = [
         'Master_Port', 'Master_Server_Id',
         'Last_Errno', 'Last_IO_Errno', 'Last_SQL_Errno', ]
@@ -324,6 +326,11 @@ class MySQLCollector(diamond.collector.Collector):
         for row in rows:
             try:
                 metrics['status'][row['Variable_name']] = float(row['Value'])
+            except ValueError:
+                if row['Value'] == "ON":
+                    metrics['status'][row['Variable_name']] = 1.0
+                elif row['Value']:
+                    metrics['status'][row['Variable_name']] = 0.0
             except:
                 pass
 

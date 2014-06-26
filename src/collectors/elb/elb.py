@@ -82,9 +82,7 @@ class ElbCollector(diamond.collector.Collector):
         ('HTTPCode_Backend_3XX', 'Sum', 'COUNTER', 0, True),
         ('HTTPCode_Backend_4XX', 'Sum', 'COUNTER', 0, True),
         ('HTTPCode_Backend_5XX', 'Sum', 'COUNTER', 0, True),
-        ('BackendConnectionErrors', 'Sum', 'COUNTER', 0, True),
-        ('SurgeQueueLength', 'Maximum', 'GAUGE', 0, True),
-        ('SpilloverCount', 'Sum', 'COUNTER', 0, True)
+        ('BackendConnectionErrors', 'Sum', 'COUNTER', 0, True)
     ]
 
     def __init__(self, config, handlers):
@@ -139,10 +137,24 @@ class ElbCollector(diamond.collector.Collector):
         if 'elb_names' not in region_cfg:
             elb_conn = boto.ec2.elb.connect_to_region(region,
                                                       **self.auth_kwargs)
-            elb_names = [elb.name for elb in elb_conn.get_all_load_balancers()]
+            full_elb_names = [elb.name for elb in elb_conn.get_all_load_balancers()]
+
+            # Define regular expression matches for ELBs we DO NOT want to get metrics on.
+            matchers = []
+            if self.config['elbs_ignored']:
+                for reg in self.config['elbs_ignored']:
+                    matchers.append(re.compile(reg))
+
+            # cycle through elbs get the list of elbs that match
+            elb_names = []
+            for elb_name in full_elb_names:
+                if matchers and any([m.match( elb_name ) for m in matchers]):
+                    continue
+                elb_names.append( elb_name )
         else:
             elb_names = region_cfg['elb_names']
         return elb_names
+
 
     def publish_delayed_metric(self, name, value, timestamp, raw_value=None,
                                precision=0, metric_type='GAUGE', instance=None):

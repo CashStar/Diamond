@@ -41,6 +41,7 @@ import calendar
 #from datetime import datetime, timedelta
 import datetime
 import time
+import re
 from string import Template
 
 import diamond.collector

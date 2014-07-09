@@ -44,7 +44,10 @@ except ImportError:
 
 
 class MySQLCollector(diamond.collector.Collector):
-
+    _COUNTER_KEYS [
+        'Slave_running',
+        'Seconds_Behind_Master',
+    ]
     _GAUGE_KEYS = [
         'Innodb_buffer_pool_pages_data', 'Innodb_buffer_pool_pages_dirty',
         'Innodb_buffer_pool_pages_free',
@@ -60,7 +63,6 @@ class MySQLCollector(diamond.collector.Collector):
         'Open_files', 'Open_streams', 'Open_table_definitions', 'Open_tables',
         'Qcache_free_blocks', 'Qcache_free_memory',
         'Qcache_queries_in_cache', 'Qcache_total_blocks',
-        'Seconds_Behind_Master',
         'Threads_cached', 'Threads_connected', 'Threads_created',
         'Threads_running',
         # innodb status non counter keys
@@ -101,7 +103,8 @@ class MySQLCollector(diamond.collector.Collector):
         'Innodb_log_pending_checkpoint_writes', 'Innodb_log_pending_log_writes',
         'Innodb_row_queries_inside', 'Innodb_row_queries_queue',
         'Innodb_trx_history_list_length', 'Innodb_trx_total_lock_structs',
-        'Innodb_status_process_time', ]
+        'Innodb_status_process_time',
+    ]
     _IGNORE_KEYS = [
         'Master_Port', 'Master_Server_Id',
         'Last_Errno', 'Last_IO_Errno', 'Last_SQL_Errno', ]
@@ -324,6 +327,11 @@ class MySQLCollector(diamond.collector.Collector):
         for row in rows:
             try:
                 metrics['status'][row['Variable_name']] = float(row['Value'])
+            except ValueError:
+                if row['Value'] == "ON":
+                    metrics['status'][row['Variable_name']] = 1.0
+                elif row['Value']:
+                    metrics['status'][row['Variable_name']] = 0.0
             except:
                 pass
 
@@ -416,7 +424,7 @@ class MySQLCollector(diamond.collector.Collector):
                 if type(metric_value) is not float:
                     continue
 
-                if metric_name not in self._GAUGE_KEYS:
+                if metric_name not in self._GAUGE_KEYS and metric_name not in self._COUNTER_KEYS:
                     metric_value = self.derivative(nickname + metric_name,
                                                    metric_value)
                 if key == 'status':

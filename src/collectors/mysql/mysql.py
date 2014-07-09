@@ -44,7 +44,7 @@ except ImportError:
 
 
 class MySQLCollector(diamond.collector.Collector):
-    _COUNTER_KEYS [
+    _COUNTER_KEYS = [
         'Slave_running',
         'Seconds_Behind_Master',
     ]

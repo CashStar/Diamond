@@ -8,7 +8,6 @@ from Handler import Handler
 
 try:
     import zmq
-    zmq  # Pyflakes
 except ImportError:
     zmq = None
 
@@ -30,6 +29,8 @@ class zmqHandler (Handler):
 
         if not zmq:
             self.log.error('zmq import failed. Handler disabled')
+            self.enabled = False
+            return
 
         # Initialize Data
         self.context = None

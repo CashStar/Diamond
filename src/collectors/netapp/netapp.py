@@ -196,31 +196,9 @@ class NetAppCollector(diamond.collector.Collector):
 
     def get_default_config(self):
         default_config = super(NetAppCollector, self).get_default_config()
-        default_config['enabled'] = "false"
         default_config['path_prefix'] = "netapp"
         default_config['netappsdkpath'] = "/opt/netapp/lib/python/NetApp"
         return default_config
-
-    def get_schedule(self):
-        """
-        Override Collector.get_schedule, and create one per filer.
-        """
-        schedule = {}
-        if 'devices' in self.config:
-            for device in self.config['devices']:
-                # Get Device Config
-                c = self.config['devices'][device]
-                # Get Task Name
-                task = "_".join([self.__class__.__name__, device])
-                # Check if task is already in schedule
-                if task in schedule:
-                    raise KeyError("Duplicate device scheduled")
-                schedule[task] = (self.collect,
-                                  (device, c['ip'], c['user'], c['password']),
-                                  int(self.config['splay']),
-                                  int(self.config['interval']))
-        self.log.info("Set up scheduler for %s" % device)
-        return schedule
 
     def _replace_and_publish(self, path, prettyname, value, device):
         """

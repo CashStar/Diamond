@@ -116,7 +116,6 @@ if __name__ == "__main__":
     # Initialize Config
     if os.path.exists(options.configfile):
         config = configobj.ConfigObj(os.path.abspath(options.configfile))
-        config['configfile'] = options.configfile
     else:
         print >> sys.stderr, "ERROR: Config file: %s does not exist." % (
             options.configfile)
@@ -138,9 +137,6 @@ if __name__ == "__main__":
 
     collectorIndexFile = open(os.path.join(docs_path, "Collectors.md"), 'w')
     collectorIndexFile.write("## Collectors\n")
-    collectorIndexFile.write("\n")
-    collectorIndexFile.write("Note that the default collectors are noted via "
-                             + "the super-script symbol <sup>♦</sup>.\n")
     collectorIndexFile.write("\n")
 
     for collector in sorted(collectors.iterkeys()):
@@ -168,8 +164,6 @@ if __name__ == "__main__":
                                     "collectors-" + collector + ".md"), 'w')
 
         enabled = ''
-        if defaultOptions['enabled']:
-            enabled = ' <sup>♦</sup>'
 
         collectorIndexFile.write(" - [%s](collectors-%s)%s\n" % (collector,
                                                                  collector,
@@ -178,8 +172,7 @@ if __name__ == "__main__":
         docFile.write("%s\n" % (collector))
         docFile.write("=====\n")
         if collectors[collector].__doc__ is None:
-            print collectors[collector]
-            print collectors[collector].__doc__
+            print "No __doc__ string!"
         docFile.write("%s\n" % (collectors[collector].__doc__))
         docFile.write("#### Options - [Generic Options](Configuration)\n")
         docFile.write("\n")
@@ -254,13 +247,18 @@ if __name__ == "__main__":
 
         tmpfile = tempfile.mkstemp()
 
-        obj = cls({
-            'log_file': tmpfile[1],
-            })
+        options = None
+        defaultOptions = None
 
-        options = obj.get_default_config_help()
+        try:
+            obj = cls({
+                'log_file': tmpfile[1],
+                })
 
-        defaultOptions = obj.get_default_config()
+            options = obj.get_default_config_help()
+            defaultOptions = obj.get_default_config()
+        except Exception, e:
+            print "Caught Exception %s" % e
 
         os.remove(tmpfile[1])
 

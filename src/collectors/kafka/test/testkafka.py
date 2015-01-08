@@ -5,7 +5,6 @@ import urllib2
 
 try:
     from xml.etree import ElementTree
-    ElementTree  # workaround for pyflakes issue #13
 except ImportError:
     ElementTree = None
 
@@ -24,7 +23,6 @@ from kafka import KafkaCollector
 def run_only_if_ElementTree_is_available(func):
     try:
         from xml.etree import ElementTree
-        ElementTree  # workaround for pyflakes issue #13
     except ImportError:
         ElementTree = None
     pred = lambda: ElementTree is not None
@@ -87,9 +85,10 @@ class TestKafkaCollector(CollectorTestCase):
             'kafka:type=kafka.SocketServerStats',
             'kafka:type=kafka.logs.mytopic-0',
             'kafka:type=kafka.logs.mytopic-1',
+            'kafka:type=kafka.Log4jController',
         ])
 
-        found_beans = self.collector.get_mbeans()
+        found_beans = self.collector.get_mbeans('*')
 
         self.assertEqual(found_beans, expected_names)
 
@@ -98,7 +97,7 @@ class TestKafkaCollector(CollectorTestCase):
     def test_get_mbeans_get_fail(self, get_mock):
         get_mock.return_value = None
 
-        found_beans = self.collector.get_mbeans()
+        found_beans = self.collector.get_mbeans('*')
 
         self.assertEqual(found_beans, None)
 
@@ -150,9 +149,11 @@ class TestKafkaCollector(CollectorTestCase):
     def test(self, publish_mock, urlopen_mock):
         urlopen_mock.side_effect = [
             self.getFixture('serverbydomain_logs_only.xml'),
-            self.getFixture('mbean.xml'),
-            self.getFixture('gc_marksweep.xml'),
+            self.getFixture('serverbydomain_gc.xml'),
+            self.getFixture('serverbydomain_threading.xml'),
             self.getFixture('gc_scavenge.xml'),
+            self.getFixture('gc_marksweep.xml'),
+            self.getFixture('mbean.xml'),
             self.getFixture('threading.xml'),
         ]
         self.collector.collect()
@@ -162,16 +163,16 @@ class TestKafkaCollector(CollectorTestCase):
             'kafka.logs.mytopic-1.NumAppendedMessages': 224634137,
             'kafka.logs.mytopic-1.NumberOfSegments': 94,
             'kafka.logs.mytopic-1.Size': 50143615339,
-            'jvm.threading.CurrentThreadCpuTime': 0,
-            'jvm.threading.CurrentThreadUserTime': 0,
-            'jvm.threading.DaemonThreadCount': 58,
-            'jvm.threading.PeakThreadCount': 90,
-            'jvm.threading.ThreadCount': 89,
-            'jvm.threading.TotalStartedThreadCount': 228,
-            'jvm.gc.scavenge.CollectionCount': 37577,
-            'jvm.gc.scavenge.CollectionTime': 112293,
-            'jvm.gc.marksweep.CollectionCount': 2,
-            'jvm.gc.marksweep.CollectionTime': 160,
+            'Threading.CurrentThreadCpuTime': 0,
+            'Threading.CurrentThreadUserTime': 0,
+            'Threading.DaemonThreadCount': 58,
+            'Threading.PeakThreadCount': 90,
+            'Threading.ThreadCount': 89,
+            'Threading.TotalStartedThreadCount': 228,
+            'GarbageCollector.PSScavenge.CollectionCount': 37577,
+            'GarbageCollector.PSScavenge.CollectionTime': 112293,
+            'GarbageCollector.PSMarkSweep.CollectionCount': 2,
+            'GarbageCollector.PSMarkSweep.CollectionTime': 160,
         }
 
         self.assertPublishedMany(publish_mock, expected_metrics)

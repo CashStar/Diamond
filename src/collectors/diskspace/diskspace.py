@@ -27,7 +27,6 @@ import re
 
 try:
     import psutil
-    psutil  # workaround for pyflakes issue #13
 except ImportError:
     psutil = None
 
@@ -50,8 +49,6 @@ class DiskSpaceCollector(diamond.collector.Collector):
         """
         config = super(DiskSpaceCollector, self).get_default_config()
         config.update({
-            # Enabled by default
-            'enabled': 'True',
             'path': 'diskspace',
             # filesystems to examine
             'filesystems': 'ext2, ext3, ext4, xfs, glusterfs, nfs, ntfs, hfs,'
@@ -71,18 +68,13 @@ class DiskSpaceCollector(diamond.collector.Collector):
             # exclude everything that includes the letter "m"
             'exclude_filters': ['^/export/home'],
 
-            # We don't use any derivative data to calculate this value
-            # Thus we can use a threaded model
-            'method': 'Threaded',
-
             # Default numeric output
             'byte_unit': ['byte']
         })
         return config
 
-    def __init__(self, config, handlers):
-        super(DiskSpaceCollector, self).__init__(config, handlers)
-
+    def process_config(self):
+        super(DiskSpaceCollector, self).process_config()
         # Precompile things
         self.exclude_filters = self.config['exclude_filters']
         if isinstance(self.exclude_filters, basestring):
@@ -167,7 +159,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
                         continue
 
                     result[(major, minor)] = {
-                        'device': device,
+                        'device': os.path.realpath(device),
                         'mount_point': mount_point,
                         'fs_type': fs_type
                     }
@@ -182,7 +174,7 @@ class DiskSpaceCollector(diamond.collector.Collector):
             partitions = psutil.disk_partitions(False)
             for partition in partitions:
                 result[(0, len(result))] = {
-                    'device': partition.device,
+                    'device': os.path.realpath(partition.device),
                     'mount_point': partition.mountpoint,
                     'fs_type': partition.fstype
                 }

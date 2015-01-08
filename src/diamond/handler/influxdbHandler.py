@@ -31,14 +31,11 @@ database = graphite
 time_precision = s
 """
 
-import struct
 import time
 from Handler import Handler
 
 try:
-    import influxdb
     from influxdb.client import InfluxDBClient
-    InfluxDBClient
 except ImportError:
     InfluxDBClient = None
 
@@ -57,6 +54,8 @@ class InfluxdbHandler(Handler):
         if not InfluxDBClient:
             self.log.error('influxdb.client.InfluxDBClient import failed. '
                            'Handler disabled')
+            self.enabled = False
+            return
 
         # Initialize Options
         if self.config['ssl'] == "True":

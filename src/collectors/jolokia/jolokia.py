@@ -28,7 +28,7 @@ JolokiaCollector.conf
 ```
     host 'localhost'
     port '8778'
-    mbeans '"java.lang:name=ParNew,type=GarbageCollector | org.apache.cassandra.metrics:name=WriteTimeouts,type=ClientRequestMetrics"'
+    mbeans '"java.lang:name=ParNew,type=GarbageCollector | org.apache.cassandra.metrics:name=WriteTimeouts,type=ClientRequestMetrics"' # noqa
 ```
 """
 
@@ -73,9 +73,8 @@ class JolokiaCollector(diamond.collector.Collector):
         })
         return config
 
-    def __init__(self, config, handlers):
-        super(JolokiaCollector, self).__init__(config, handlers)
-
+    def process_config(self):
+        super(JolokiaCollector, self).process_config()
         self.mbeans = []
         if isinstance(self.config['mbeans'], basestring):
             for mbean in self.config['mbeans'].split('|'):
@@ -143,3 +142,10 @@ class JolokiaCollector(diamond.collector.Collector):
                 self.publish(key, v)
             elif type(v) in [dict]:
                 self.collect_bean("%s.%s" % (prefix, k), v)
+            elif type(v) in [list]:
+                self.interpret_bean_with_list("%s.%s" % (prefix, k), v)
+
+    # There's no unambiguous way to interpret list values, so
+    # this hook lets subclasses handle them.
+    def interpret_bean_with_list(self, prefix, values):
+        pass

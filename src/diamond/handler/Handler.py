@@ -11,13 +11,19 @@ class Handler(object):
     """
     Handlers process metrics that are collected by Collectors.
     """
-    def __init__(self, config=None):
+    def __init__(self, config=None, log=None):
         """
         Create a new instance of the Handler class
         """
 
+        # Enabled? Default to yes, but allow handlers to disable themselves
+        self.enabled = True
+
         # Initialize Log
-        self.log = logging.getLogger('diamond')
+        if log is None:
+            self.log = logging.getLogger('diamond')
+        else:
+            self.log = log
 
         # Initialize Blank Configs
         self.config = ConfigObj()
@@ -58,6 +64,8 @@ class Handler(object):
         """
         Decorator for processing handlers with a lock, catching exceptions
         """
+        if not self.enabled:
+            return
         try:
             try:
                 self.lock.acquire()
@@ -80,6 +88,8 @@ class Handler(object):
         """
         Decorator for flushing handlers with an lock, catching exceptions
         """
+        if not self.enabled:
+            return
         try:
             try:
                 self.lock.acquire()

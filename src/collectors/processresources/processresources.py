@@ -30,6 +30,7 @@ for example: cgi workers.
 
 import os
 import re
+import time
 
 import diamond.collector
 import diamond.convertor
@@ -90,7 +91,8 @@ def get_value(process, name):
 
 
 class ProcessResourcesCollector(diamond.collector.Collector):
-    def __init__(self, *args, **kwargs):
+    def process_config(self):
+        super(ProcessResourcesCollector, self).process_config()
         """
         prepare self.processes, which is a descriptor dictionary in
         pg_name: {
@@ -102,7 +104,6 @@ class ProcessResourcesCollector(diamond.collector.Collector):
             count_workers: [boolean]
         }
         """
-        super(ProcessResourcesCollector, self).__init__(*args, **kwargs)
         self.processes = {}
         self.processes_info = {}
         for pg_name, cfg in self.config['process'].items():
@@ -148,6 +149,7 @@ class ProcessResourcesCollector(diamond.collector.Collector):
         'cpu_times',
         'io_counters',
         'num_threads',
+        'num_fds',
         'memory_percent',
         'ext_memory_info',
     ]
@@ -173,6 +175,8 @@ class ProcessResourcesCollector(diamond.collector.Collector):
                     pi = process_info(process, self.default_info_keys)
                     if cfg['count_workers']:
                         pi.update({'workers_count': 1})
+                    uptime = time.time() - getattr(process, 'create_time')
+                    pi.update({'uptime': uptime})
                     self.save_process_info(pg_name, pi)
         except psutil.NoSuchProcess, e:
             self.log.info("Process exited while trying to get info: %s", e)

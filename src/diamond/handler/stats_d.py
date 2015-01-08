@@ -31,7 +31,6 @@ from Handler import Handler
 import logging
 try:
     import statsd
-    statsd  # Pyflakes
 except ImportError:
     statsd = None
 
@@ -48,6 +47,8 @@ class StatsdHandler(Handler):
 
         if not statsd:
             self.log.error('statsd import failed. Handler disabled')
+            self.enabled = False
+            return
 
         # Initialize Options
         self.host = self.config['host']

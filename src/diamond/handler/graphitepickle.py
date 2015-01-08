@@ -27,7 +27,6 @@ from graphite import GraphiteHandler
 
 try:
     import cPickle as pickle
-    pickle  # workaround for pyflakes issue #13
 except ImportError:
     import pickle as pickle
 
@@ -66,6 +65,7 @@ class GraphitePickleHandler(GraphiteHandler):
         config = super(GraphitePickleHandler, self).get_default_config()
 
         config.update({
+            'port': 2004,
         })
 
         return config

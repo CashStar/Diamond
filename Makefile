@@ -22,7 +22,6 @@ all:
 	@echo "make ebuild   - Generate a ebuild package"
 	@echo "make tar      - Generate a tar ball"
 	@echo "make clean    - Get rid of scratch and byte files"
-	@echo "make cleanws  - Strip trailing whitespaces from files"
 
 run:
 	./bin/diamond --configfile=conf/diamond.conf --foreground --log-stdout
@@ -55,7 +54,9 @@ rpm: buildrpm
 
 buildrpm: sdist
 	./setup.py bdist_rpm \
-		--release=`ls dist/*.noarch.rpm | wc -l`
+		--release=`ls dist/*.noarch.rpm | wc -l` \
+		--build-requires='python' \
+		--requires='python'
 
 deb: builddeb
 
@@ -90,10 +91,8 @@ tar: sdist
 clean:
 	./setup.py clean
 	rm -rf dist build MANIFEST .tox *.log
+	rm -f version.txt src/diamond/version.py
 	find . -name '*.pyc' -delete
-
-cleanws:
-	find . -name '*.py' -exec sed -i'' -e 's/[ \t]*$$//' {} \;
 
 version:
 	./version.sh > version.txt
@@ -107,7 +106,7 @@ reltest:
 distrotest:
 	echo ${DISTRO}
 
-pypi:
+pypi: version
 	python setup.py sdist upload
 
 .PHONY: run watch config test docs sdist bdist install rpm buildrpm deb sdeb builddeb buildsourcedeb ebuild buildebuild tar clean cleanws version reltest vertest distrotest pypi

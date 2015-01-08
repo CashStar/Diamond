@@ -19,7 +19,6 @@ from diamond.collector import str_to_bool
 
 try:
     import json
-    json  # workaround for pyflakes issue #13
 except ImportError:
     import simplejson as json
 
@@ -30,9 +29,8 @@ RE_LOGSTASH_INDEX = re.compile('^(.*)-\d\d\d\d\.\d\d\.\d\d$')
 
 class ElasticSearchCollector(diamond.collector.Collector):
 
-    def __init__(self, *args, **kwargs):
-        super(ElasticSearchCollector, self).__init__(*args, **kwargs)
-
+    def process_config(self):
+        super(ElasticSearchCollector, self).process_config()
         instance_list = self.config['instances']
         if isinstance(instance_list, basestring):
             instance_list = [instance_list]
@@ -196,8 +194,9 @@ class ElasticSearchCollector(diamond.collector.Collector):
                          result, ['initializing_shards'])
 
     def collect_instance_index_stats(self, host, port, metrics):
-        result = self._get(host, port, '_stats?clear=true&docs=true&store=true&'
-                                   + 'indexing=true&get=true&search=true', '_all')
+        result = self._get(host, port,
+                           '_stats?clear=true&docs=true&store=true&'
+                           + 'indexing=true&get=true&search=true', '_all')
         if not result:
             return
 

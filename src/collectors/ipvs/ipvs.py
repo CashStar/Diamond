@@ -18,9 +18,8 @@ from diamond.collector import str_to_bool
 
 class IPVSCollector(diamond.collector.Collector):
 
-    def __init__(self, config, handlers):
-        super(IPVSCollector, self).__init__(config, handlers)
-
+    def process_config(self):
+        super(IPVSCollector, self).process_config()
         # Verify the --exact flag works
         self.statcommand = [self.config['bin'], '--list', '--stats',
                             '--numeric', '--exact']
@@ -33,14 +32,6 @@ class IPVSCollector(diamond.collector.Collector):
             # prompting the user for a password.
             self.statcommand.insert(1, '-n')
             self.concommand.insert(1, '-n')
-
-        p = subprocess.Popen(self.statcommand, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        p.wait()
-
-        if p.returncode == 255:
-            self.statcommand = filter(
-                lambda a: a != '--exact', self.statcommand)
 
     def get_default_config_help(self):
         config_help = super(IPVSCollector, self).get_default_config_help()
@@ -66,13 +57,23 @@ class IPVSCollector(diamond.collector.Collector):
 
     def collect(self):
         if not os.access(self.config['bin'], os.X_OK):
-            self.log.error("%s is not executable", self.config['bin'])
+            self.log.error("%s does not exist, or is not executable",
+                           self.config['bin'])
             return False
 
         if (str_to_bool(self.config['use_sudo'])
                 and not os.access(self.config['sudo_cmd'], os.X_OK)):
-            self.log.error("%s is not executable", self.config['sudo_cmd'])
+            self.log.error("%s does not exist, or is not executable",
+                           self.config['sudo_cmd'])
             return False
+
+        p = subprocess.Popen(self.statcommand, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        p.wait()
+
+        if p.returncode == 255:
+            self.statcommand = filter(
+                lambda a: a != '--exact', self.statcommand)
 
         p = subprocess.Popen(self.statcommand,
                              stdout=subprocess.PIPE).communicate()[0][:-1]

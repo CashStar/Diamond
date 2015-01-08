@@ -10,7 +10,6 @@ from Handler import Handler
 
 try:
     import pika
-    pika  # Pyflakes
 except ImportError:
     pika = None
 
@@ -49,6 +48,7 @@ class rmqHandler (Handler):
 
         if not pika:
             self.log.error('pika import failed. Handler disabled')
+            self.enabled = False
             return
 
         # Create rabbitMQ topic exchange and bind

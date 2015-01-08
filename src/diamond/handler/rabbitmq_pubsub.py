@@ -9,7 +9,6 @@ import time
 
 try:
     import pika
-    pika  # Pyflakes
 except ImportError:
     pika = None
 
@@ -30,6 +29,7 @@ class rmqHandler (Handler):
 
         if pika is None:
             self.log.error('pika import failed. Handler disabled')
+            self.enabled = False
             return
 
         # Initialize Data
@@ -183,8 +183,9 @@ class rmqHandler (Handler):
         """
           Destroy instance of the rmqHandler class
         """
-        for rmq_server in self.connections.keys():
-            self._unbind(rmq_server)
+        if hasattr(self, 'connections'):
+            for rmq_server in self.connections.keys():
+                self._unbind(rmq_server)
 
     def process(self, metric):
         """

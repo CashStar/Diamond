@@ -42,7 +42,6 @@ import time
 
 try:
     import redis
-    redis  # workaround for pyflakes issue #13
 except ImportError:
     redis = None
 
@@ -75,15 +74,15 @@ class RedisCollector(diamond.collector.Collector):
              'process.commands_processed': 'total_commands_processed',
              'process.connections_received': 'total_connections_received',
              'process.uptime': 'uptime_in_seconds',
+             'process.instantaneous_ops_per_sec': 'instantaneous_ops_per_sec',
              'pubsub.channels': 'pubsub_channels',
              'pubsub.patterns': 'pubsub_patterns',
              'slaves.connected': 'connected_slaves'}
     _RENAMED_KEYS = {'last_save.changes_since': 'rdb_changes_since_last_save',
                      'last_save.time': 'rdb_last_save_time'}
 
-    def __init__(self, *args, **kwargs):
-        super(RedisCollector, self).__init__(*args, **kwargs)
-
+    def process_config(self):
+        super(RedisCollector, self).process_config()
         instance_list = self.config['instances']
         # configobj make str of single-element list, let's convert
         if isinstance(instance_list, basestring):
@@ -103,7 +102,7 @@ class RedisCollector(diamond.collector.Collector):
         for instance in instance_list:
 
             if '@' in instance:
-                (nickname, hostport) = instance.split('@', 2)
+                (nickname, hostport) = instance.split('@', 1)
             else:
                 nickname = None
                 hostport = instance

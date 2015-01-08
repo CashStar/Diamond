@@ -73,7 +73,6 @@ except ImportError:
 
 try:
     import mosquitto
-    mosquitto  # Pyflakes
 except ImportError:
     mosquitto = None
 
@@ -112,6 +111,7 @@ class MQTTHandler(Handler):
 
         if not mosquitto:
             self.log.error('mosquitto import failed. Handler disabled')
+            self.enabled = False
             return
 
         # Initialize

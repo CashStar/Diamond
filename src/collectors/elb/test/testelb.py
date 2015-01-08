@@ -18,7 +18,6 @@ from elb import ElbCollector
 def run_only_if_boto_is_available(func):
     try:
         import boto
-        boto  # workaround for pyflakes issue #13
     except ImportError:
         boto = None
     pred = lambda: boto is not None
@@ -73,6 +72,8 @@ class TestElbCollector(CollectorTestCase):
         elb_connect_to_region.return_value = elb_conn
 
         cw_conn = Mock()
+        cw_conn.region = Mock()
+        cw_conn.region.name = 'us-west-1'
         cw_conn.get_metric_statistics = Mock()
         ts = datetime.datetime.utcnow().replace(second=0, microsecond=0)
 
@@ -147,6 +148,8 @@ class TestElbCollector(CollectorTestCase):
         connect_to_region.return_value = ec2_conn
 
         cw_conn = Mock()
+        cw_conn.region = Mock()
+        cw_conn.region.name = 'us-west-1'
         cw_conn.get_metric_statistics = Mock()
         ts = datetime.datetime.utcnow().replace(second=0, microsecond=0)
 

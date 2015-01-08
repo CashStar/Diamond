@@ -65,11 +65,10 @@ from diamond.metric import Metric
 
 class SNMPRawCollector(parent_SNMPCollector):
 
-    def __init__(self, *args, **kwargs):
-        super(SNMPRawCollector, self).__init__(*args, **kwargs)
-
+    def process_config(self):
+        super(SNMPRawCollector, self).process_config()
         # list to save non-existing oid's per device, to avoid repetition of
-        # errors in logging. restart diamond/collector to flush this
+        # errors in logging. Signal HUP to diamond/collector to flush this
         self.skip_list = []
 
     def get_default_config(self):
@@ -182,6 +181,7 @@ class SNMPRawCollector(parent_SNMPCollector):
 
                 path = '.'.join([self.config['path_prefix'], device,
                                  self.config['path_suffix'], metricName])
-                metric = Metric(path, value, timestamp, self._precision(value),
-                                None, 'GAUGE')
+                metric = Metric(path=path, value=value, timestamp=timestamp,
+                                precision=self._precision(value),
+                                metric_type='GAUGE')
                 self.publish_metric(metric)

@@ -15,7 +15,6 @@ from diamond.collector import str_to_bool
 try:
     import psycopg2
     import psycopg2.extras
-    psycopg2  # workaround for pyflakes issue #13
 except ImportError:
     psycopg2 = None
 
@@ -62,7 +61,6 @@ class PostgresqlCollector(diamond.collector.Collector):
             'sslmode': 'disable',
             'underscore': False,
             'extended': False,
-            'method': 'Threaded',
             'metrics': [],
             'pg_version': 9.2,
             'has_admin': True,
@@ -97,26 +95,31 @@ class PostgresqlCollector(diamond.collector.Collector):
         # Iterate every QueryStats class
         for metric_name in set(metrics):
             if metric_name not in metrics_registry:
+                self.log.error(
+                    'metric_name %s not found in metric registry' % metric_name)
                 continue
 
             for dbase in dbs:
                 conn = self._connect(database=dbase)
-                klass = metrics_registry[metric_name]
-                stat = klass(dbase, conn,
-                             underscore=self.config['underscore'])
-                stat.fetch(self.config['pg_version'])
-                for metric, value in stat:
-                    if value is not None:
-                        self.publish(metric, value)
+                try:
+                    klass = metrics_registry[metric_name]
+                    stat = klass(dbase, conn,
+                                 underscore=self.config['underscore'])
+                    stat.fetch(self.config['pg_version'])
+                    for metric, value in stat:
+                        if value is not None:
+                            self.publish(metric, value)
 
-                # Setting multi_db to True will run this query on all known
-                # databases. This is bad for queries that hit views like
-                # pg_database, which are shared across databases.
-                #
-                # If multi_db is False, bail early after the first query
-                # iteration. Otherwise, continue to remaining databases.
-                if stat.multi_db is False:
-                    break
+                    # Setting multi_db to True will run this query on all known
+                    # databases. This is bad for queries that hit views like
+                    # pg_database, which are shared across databases.
+                    #
+                    # If multi_db is False, bail early after the first query
+                    # iteration. Otherwise, continue to remaining databases.
+                    if stat.multi_db is False:
+                        break
+                finally:
+                    conn.close()
 
     def _get_db_names(self):
         """
@@ -184,44 +187,46 @@ class QueryStats(object):
         return datname
 
     def fetch(self, pg_version):
-        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         if float(pg_version) >= 9.2 and hasattr(self, 'post_92_query'):
             q = self.post_92_query
         else:
             q = self.query
 
-        cursor.execute(q, self.parameters)
-        rows = cursor.fetchall()
-        for row in rows:
-            # If row is length 2, assume col1, col2 forms key: value
-            if len(row) == 2:
-                self.data.append({
-                    'datname': self._translate_datname(self.dbname),
-                    'metric': row[0],
-                    'value': row[1],
-                })
-
-            # If row > length 2, assume each column name maps to
-            # key => value
-            else:
-                for key, value in row.iteritems():
-                    if key in ('datname', 'schemaname', 'relname',
-                               'indexrelname',):
-                        continue
-
+        cursor = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        try:
+            cursor.execute(q, self.parameters)
+            rows = cursor.fetchall()
+            for row in rows:
+                # If row is length 2, assume col1, col2 forms key: value
+                if len(row) == 2:
                     self.data.append({
-                        'datname': self._translate_datname(row.get(
-                            'datname', self.dbname)),
-                        'schemaname': row.get('schemaname', None),
-                        'relname': row.get('relname', None),
-                        'indexrelname': row.get('indexrelname', None),
-                        'metric': key,
-                        'value': value,
+                        'datname': self._translate_datname(self.dbname),
+                        'metric': row[0],
+                        'value': row[1],
                     })
 
+                # If row > length 2, assume each column name maps to
+                # key => value
+                else:
+                    for key, value in row.iteritems():
+                        if key in ('datname', 'schemaname', 'relname',
+                                   'indexrelname', 'funcname',):
+                            continue
+
+                        self.data.append({
+                            'datname': self._translate_datname(row.get(
+                                'datname', self.dbname)),
+                            'schemaname': row.get('schemaname', None),
+                            'relname': row.get('relname', None),
+                            'indexrelname': row.get('indexrelname', None),
+                            'funcname': row.get('funcname', None),
+                            'metric': key,
+                            'value': value,
+                        })
+
         # Clean up
-        cursor.close()
-        self.conn.close()
+        finally:
+            cursor.close()
 
     def __iter__(self):
         for data_point in self.data:
@@ -258,6 +263,19 @@ class DatabaseStats(QueryStats):
         '').replace(
         'pg_stat_database.temp_bytes as temp_bytes,',
         '')
+
+
+class UserFunctionStats(QueryStats):
+    # http://www.pateldenish.com/2010/11/postgresql-track-functions-to-tune.html
+    path = "%(datname)s.functions.%(funcname)s.%(metric)s"
+    multi_db = True
+    query = """
+        SELECT funcname,
+               calls,
+               total_time/calls as time_per_call
+        FROM pg_stat_user_functions
+        WHERE calls <> 0
+    """
 
 
 class UserTableStats(QueryStats):
@@ -354,8 +372,40 @@ class ConnectionStateStats(QueryStats):
              ) AS tmp2
         ON tmp.state=tmp2.state ORDER BY 1
     """
-    post_92_query = query.replace('procpid', 'pid').replace('current_query',
-                                                            'query')
+    post_92_query = """
+        SELECT tmp.mstate AS state,COALESCE(count,0) FROM
+               (VALUES ('active'),
+                       ('waiting'),
+                       ('idle'),
+                       ('idletransaction'),
+                       ('unknown')
+               ) AS tmp(mstate)
+        LEFT JOIN
+             (SELECT CASE WHEN waiting THEN 'waiting'
+                          WHEN state = 'idle' THEN 'idle'
+                          WHEN state LIKE 'idle in transaction%'
+                              THEN 'idletransaction'
+                          WHEN state = 'disabled'
+                              THEN 'unknown'
+                          WHEN query = '<insufficient privilege>'
+                              THEN 'unknown'
+                          ELSE 'active' END AS mstate,
+                     count(*) AS count
+               FROM pg_stat_activity
+               WHERE pid != pg_backend_pid()
+               GROUP BY CASE WHEN waiting THEN 'waiting'
+                             WHEN state = 'idle' THEN 'idle'
+                             WHEN state LIKE 'idle in transaction%'
+                                 THEN 'idletransaction'
+                             WHEN state = 'disabled'
+                                 THEN 'unknown'
+                             WHEN query = '<insufficient privilege>'
+                                 THEN 'unknown'
+                             ELSE 'active'
+                        END
+             ) AS tmp2
+        ON tmp.mstate=tmp2.mstate ORDER BY 1
+    """
 
 
 class LockStats(QueryStats):
@@ -429,32 +479,34 @@ class TransactionCount(QueryStats):
 class IdleInTransactions(QueryStats):
     path = "%(datname)s.idle_in_tranactions.%(metric)s"
     multi_db = True
-    query = """
+    base_query = """
         SELECT 'idle_in_transactions',
                max(COALESCE(ROUND(EXTRACT(epoch FROM now()-query_start)),0))
                    AS idle_in_transaction
         FROM pg_stat_activity
-        WHERE current_query = '<IDLE> in transaction'
+        WHERE %s
         GROUP BY 1
     """
-    post_92_query = query.replace('current_query', 'query')
+    query = base_query % ("current_query = '<IDLE> in transaction'", )
+    post_92_query = base_query % ("state LIKE 'idle in transaction%'", )
 
 
 class LongestRunningQueries(QueryStats):
     path = "%(datname)s.longest_running.%(metric)s"
     multi_db = True
-    query = """
+    base_query = """
         SELECT 'query',
             COALESCE(max(extract(epoch FROM CURRENT_TIMESTAMP-query_start)),0)
         FROM pg_stat_activity
-        WHERE current_query NOT LIKE '<IDLE%'
+        WHERE %s
         UNION ALL
         SELECT 'transaction',
             COALESCE(max(extract(epoch FROM CURRENT_TIMESTAMP-xact_start)),0)
         FROM pg_stat_activity
         WHERE 1=1
     """
-    post_92_query = query.replace('current_query', 'query')
+    query = base_query % ("current_query NOT LIKE '<IDLE%'", )
+    post_92_query = base_query % ("state NOT LIKE 'idle%'", )
 
 
 class UserConnectionCount(QueryStats):
@@ -507,9 +559,28 @@ class TupleAccessStats(QueryStats):
     """
 
 
+class DatabaseReplicationStats(QueryStats):
+    path = "database.replication.%(metric)s"
+    multi_db = False
+    query = """
+        SELECT EXTRACT(epoch FROM
+            current_timestamp - pg_last_xact_replay_timestamp()) as replay_lag
+    """
+
+
+class DatabaseXidAge(QueryStats):
+    path = "%(datname)s.datfrozenxid.%(metric)s"
+    multi_db = False
+    query = """
+        SELECT datname, age(datfrozenxid) AS age
+        FROM pg_database WHERE datallowconn = TRUE
+    """
+
+
 metrics_registry = {
     'DatabaseStats': DatabaseStats,
     'DatabaseConnectionCount': DatabaseConnectionCount,
+    'UserFunctionStats': UserFunctionStats,
     'UserTableStats': UserTableStats,
     'UserIndexStats': UserIndexStats,
     'UserTableIOStats': UserTableIOStats,
@@ -525,6 +596,8 @@ metrics_registry = {
     'UserConnectionCount': UserConnectionCount,
     'TableScanStats': TableScanStats,
     'TupleAccessStats': TupleAccessStats,
+    'DatabaseReplicationStats': DatabaseReplicationStats,
+    'DatabaseXidAge': DatabaseXidAge,
 }
 
 registry = {
@@ -535,6 +608,9 @@ registry = {
     'extended': [
         'DatabaseStats',
         'DatabaseConnectionCount',
+        'DatabaseReplicationStats',
+        'DatabaseXidAge',
+        'UserFunctionStats',
         'UserTableStats',
         'UserIndexStats',
         'UserTableIOStats',

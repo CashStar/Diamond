@@ -19,7 +19,6 @@ def running_under_virtualenv():
 
 if os.environ.get('USE_SETUPTOOLS'):
     from setuptools import setup
-    setup  # workaround for pyflakes issue #13
     setup_kwargs = dict(zip_safe=0)
 else:
     from distutils.core import setup
@@ -114,8 +113,8 @@ def pkgPath(root, path, rpath="/"):
         return
     files = []
     for spath in os.listdir(path):
+        # Ignore test directories
         if spath == 'test':
-            # ignore test directories
             continue
         subpath = os.path.join(path, spath)
         spath = os.path.join(rpath, spath)
@@ -135,16 +134,15 @@ version = get_version()
 setup(
     name='diamond',
     version=version,
-    url='https://github.com/BrightcoveOS/Diamond',
+    url='https://github.com/python-diamond/Diamond',
     author='The Diamond Team',
-    author_email='https://github.com/BrightcoveOS/Diamond',
+    author_email='https://github.com/python-diamond/Diamond',
     license='MIT License',
     description='Smart data producer for graphite graphing package',
     package_dir={'': 'src'},
-    packages=['diamond', 'diamond.handler'],
+    packages=['diamond', 'diamond.handler', 'diamond.utils'],
     scripts=['bin/diamond', 'bin/diamond-setup'],
     data_files=data_files,
     install_requires=install_requires,
-    #test_suite='test.main',
     ** setup_kwargs
 )

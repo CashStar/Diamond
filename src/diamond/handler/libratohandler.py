@@ -39,7 +39,6 @@ import re
 
 try:
     import librato
-    librato  # workaround for pyflakes issue #13
 except ImportError:
     librato = None
 
@@ -134,6 +133,10 @@ class LibratoHandler(Handler):
             self.log.debug("LibratoHandler: Sending batch size: %d",
                            self.current_n_measurements)
             self._send()
+
+    def flush(self):
+        """Flush metrics in queue"""
+        self._send()
 
     def _send(self):
         """

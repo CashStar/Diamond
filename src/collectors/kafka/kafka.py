@@ -14,13 +14,11 @@ from urllib import urlencode
 
 try:
     from xml.etree import ElementTree
-    ElementTree  # workaround for pyflakes issue #13
 except ImportError:
     ElementTree = None
 
 try:
     from ElementTree import ParseError as ETParseError
-    ETParseError  # workaround for pyflakes issue #13
 except ImportError:
     ETParseError = Exception
 
@@ -50,9 +48,8 @@ class KafkaCollector(diamond.collector.Collector):
         config = super(KafkaCollector, self).get_default_config()
         config.update({
             'host': '127.0.0.1',
-            'port': 7200,
+            'port': 8082,
             'path': 'kafka',
-            'method': 'Threaded',
         })
         return config
 
@@ -91,12 +88,11 @@ class KafkaCollector(diamond.collector.Collector):
         found_beans = set()
 
         for mbean in mbeans.getiterator(tag='MBean'):
-            classname = mbean.get('classname')
             objectname = mbean.get('objectname')
 
             if objectname:
                 found_beans.add(objectname)
-        
+
         return found_beans
 
     def query_mbean(self, objectname, key_prefix=None):
@@ -114,21 +110,22 @@ class KafkaCollector(diamond.collector.Collector):
         if key_prefix is None:
             # Could be 1 or 2 = in the string
             # java.lang:type=Threading
-            # "kafka.controller":type="ControllerStats",name="LeaderElectionRateAndTimeMs"
+            # "kafka.controller":type="ControllerStats",
+            # name="LeaderElectionRateAndTimeMs"
             split_num = objectname.count('=')
             for i in range(split_num):
-              if i == 0:
-                key_prefix = objectname.split('=')[1]
-                if '"' in key_prefix:
-                  key_prefix = key_prefix.split('"')[1]
-                if "," in key_prefix:
-                  key_prefix = key_prefix.split(',')[0]
-              elif i > 0:
-                key = objectname.split('=')[2]
-                if key:
-                  if '"' in key:
-                    key = key.split('"')[1]
-                  key_prefix = key_prefix + '.' + key
+                if i == 0:
+                    key_prefix = objectname.split('=')[1]
+                    if '"' in key_prefix:
+                        key_prefix = key_prefix.split('"')[1]
+                    if "," in key_prefix:
+                        key_prefix = key_prefix.split(',')[0]
+                elif i > 0:
+                    key = objectname.split('=')[2]
+                    if key:
+                        if '"' in key:
+                            key = key.split('"')[1]
+                        key_prefix = key_prefix + '.' + key
 
         metrics = {}
 
@@ -142,6 +139,9 @@ class KafkaCollector(diamond.collector.Collector):
             value = ptype(attrib.get('value'))
 
             name = '.'.join([key_prefix, attrib.get('name')])
+            # Some prefixes and attributes could have spaces, thus we must
+            # sanitize them
+            name = name.replace(' ', '')
 
             metrics[name] = value
 
@@ -153,11 +153,15 @@ class KafkaCollector(diamond.collector.Collector):
             return
 
         # Get list of gatherable stats
-        query_list = [ '*kafka*:*', 'java.lang:type=GarbageCollector,name=*', 'java.lang:type=Threading' ]
+        query_list = [
+            '*kafka*:*',
+            'java.lang:type=GarbageCollector,name=*',
+            'java.lang:type=Threading'
+        ]
         mbeans = set()
         for pattern in query_list:
-          match = self.get_mbeans(pattern)
-          mbeans.update(match)
+            match = self.get_mbeans(pattern)
+            mbeans.update(match)
 
         metrics = {}
 

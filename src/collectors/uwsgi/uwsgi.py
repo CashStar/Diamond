@@ -29,17 +29,6 @@ class UWSGICollector(diamond.collector.Collector):
         'harakiri_count'
     ]
 
-    def __init__(self, config, handlers):
-        super(UWSGICollector, self).__init__(config, handlers)
-        self.sockets = {}
-        for app_name, cfg in self.config['sockets'].items():
-            q_cfg = {}
-            for key in ['socket_path',]:
-                q_cfg[key] = cfg.get(key, [])
-                if not isinstance(q_cfg[key], self.TYPE_MAP[key]):
-                    q_cfg[key] = self.TYPE_MAP[key](q_cfg[key])
-            self.sockets[app_name] = q_cfg
-
     def get_default_config_help(self):
         config_help = super(UWSGICollector, self).get_default_config_help()
         config_help.update({
@@ -75,6 +64,15 @@ class UWSGICollector(diamond.collector.Collector):
         return None
 
     def collect(self):
+
+        self.sockets = {}
+        for app_name, cfg in self.config['sockets'].items():
+            q_cfg = {}
+            for key in ['socket_path',]:
+                q_cfg[key] = cfg.get(key, [])
+                if not isinstance(q_cfg[key], self.TYPE_MAP[key]):
+                    q_cfg[key] = self.TYPE_MAP[key](q_cfg[key])
+            self.sockets[app_name] = q_cfg
 
         for name, args in self.sockets.iteritems():
             socket_path = args.get('socket_path')
